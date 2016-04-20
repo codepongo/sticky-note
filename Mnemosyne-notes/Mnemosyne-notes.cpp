@@ -5,8 +5,9 @@
 #include <iostream>
 #include <stdio.h>
 #include <fstream>
-#include <iterator>
-
+#include <string>
+#include <wchar.h>
+#include <atlconv.h>
 #define ID_TRAY WM_USER+20
 #define IDM_CHANGE WM_USER+51
 #define WM_USER_SHELLICON WM_USER+1
@@ -28,7 +29,8 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    Edit(HWND, UINT, WPARAM, LPARAM);
-
+void SaveNote();
+void LoadNote();
 
 //MAIN
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -118,6 +120,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	switch (message)
 	{
 	case WM_CREATE:
+		LoadNote();
 		break;
 	case WM_USER_SHELLICON:
 		switch (LOWORD(lParam)) {
@@ -129,6 +132,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			InsertMenu(hPopMenu, 0xFFFFFFFF, uFlag, IDM_EXIT, _T("Exit"));
 			SetForegroundWindow(hWnd);
 			TrackPopupMenu(hPopMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN, lpClickPoint.x, lpClickPoint.y, 0, hWnd, NULL);
+
 			break;
 
 		case WM_LBUTTONDOWN:
@@ -228,6 +232,7 @@ INT_PTR CALLBACK Edit(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			rect.left = 0;
 			rect.top = 0;
 			GetDlgItemText(hDlg, IDC_EDIT1, note, MAX_NOTE_SIZE);
+			SaveNote();
 			InvalidateRect(hWnd, &rect, true);
 			EndDialog(hDlg, LOWORD(wParam));
 			return (INT_PTR)TRUE;
@@ -241,4 +246,30 @@ INT_PTR CALLBACK Edit(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	return (INT_PTR)FALSE;
+}
+
+void SaveNote() {
+
+	std::wstring wsNote(note);
+	std::string strNote(wsNote.begin(), wsNote.end());
+	WideCharToMultiByte (CP_ACP, 0, &wsNote[0], (int)wsNote.size(), &strNote[0], MAX_NOTE_SIZE, NULL, NULL);
+	std::ofstream ofs("Note.txt");
+	ofs << strNote;
+	ofs.close();
+}
+
+void LoadNote() {
+	std::string strNote, line;
+	strNote = "";
+	std::ifstream ifs("Note.txt");
+	if (ifs.is_open())
+	{
+		while (getline(ifs, line))
+		{
+			strNote += line;
+			strNote += '/n';
+		}
+		ifs.close();
+	}
+	MultiByteToWideChar(CP_ACP, 0, strNote.c_str(), -1, note, MAX_NOTE_SIZE);
 }
