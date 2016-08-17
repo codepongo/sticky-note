@@ -8,18 +8,21 @@
 #include <string>
 #include <wchar.h>
 #include <atlconv.h>
+#include "exceptionreport.h"
 #define ID_TRAY WM_USER+20
 #define IDM_CHANGE WM_USER+51
 #define WM_USER_SHELLICON WM_USER+1
 #define MAX_NOTE_SIZE 10000
 
-wchar_t note[MAX_NOTE_SIZE];
+char note[MAX_NOTE_SIZE] = { 0 };
+
 NOTIFYICONDATA nid;
 HMENU hPopMenu;
 HWND hWnd;
 LPCWSTR	szTitle = L"Mnemosyne-notes";				// The title bar text
 LPCWSTR	szWindowClass = L"Mnemosyne-notes";			// the main window class name
 LPCWSTR	icon_path_name = L"icon.ico";
+const char* db = "stick-note.txt";
 
 HFONT font = CreateFont(20, 8, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_ROMAN, L"Tahoma");
 
@@ -38,6 +41,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_ LPWSTR    lpCmdLine,
 	_In_ int       nCmdShow)
 {
+	ExceptionFilter e;
 
 	MyRegisterClass(hInstance);
 
@@ -97,9 +101,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	DWORD icon_flags = LR_LOADFROMFILE | LR_DEFAULTSIZE;
-	HICON hicon = (HICON)LoadImage(hInstance, icon_path_name, IMAGE_ICON, 0, 0, icon_flags);
-
+	DWORD icon_flags =  LR_DEFAULTSIZE;
+	HICON hicon = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_SMALL), IMAGE_ICON, 0, 0, icon_flags);
 	LPCWSTR sTip = L"Mnemosyne-notes";
 	nid.cbSize = sizeof(NOTIFYICONDATA);
 	nid.hWnd = (HWND)hWnd;
@@ -138,6 +141,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_LBUTTONDOWN:
 			SetForegroundWindow(hWnd);
 			break;
+		case WM_LBUTTONDBLCLK:
+			DialogBox((HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), MAKEINTRESOURCE(IDD_DIALOG1), hWnd, Edit);
+			break;
 		}break;
 
 	case WM_COMMAND:
@@ -167,12 +173,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RECT rect;
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
-		SetTextColor(hdc, RGB(254, 254, 254));
+		SetTextColor(hdc, RGB(0xEF, 0xF2, 0x84));
 		GetClientRect(hWnd, &rect);
 		rect.left = 0;
 		rect.top = 0;
 		SelectObject(hdc, font);
-		DrawText(hdc, note, -1, &rect, DT_NOCLIP | DT_CENTER);
+		DrawTextA(hdc, note, -1, &rect, 0);
 		DeleteDC(hdc);
 		EndPaint(hWnd, &ps);
 	}
@@ -218,7 +224,7 @@ INT_PTR CALLBACK Edit(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	switch (message)
 	{
 	case WM_INITDIALOG:
-		SetDlgItemText(hDlg, IDC_EDIT1, note);
+		SetDlgItemTextA(hDlg, IDC_EDIT1, note);
 		return (INT_PTR)TRUE;
 
 	case WM_COMMAND:
@@ -231,7 +237,7 @@ INT_PTR CALLBACK Edit(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			GetClientRect(hWnd, &rect);
 			rect.left = 0;
 			rect.top = 0;
-			GetDlgItemText(hDlg, IDC_EDIT1, note, MAX_NOTE_SIZE);
+			GetDlgItemTextA(hDlg, IDC_EDIT1, note, MAX_NOTE_SIZE);
 			SaveNote();
 			InvalidateRect(hWnd, &rect, true);
 			EndDialog(hDlg, LOWORD(wParam));
@@ -249,27 +255,22 @@ INT_PTR CALLBACK Edit(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 void SaveNote() {
-
-	std::wstring wsNote(note);
-	std::string strNote(wsNote.begin(), wsNote.end());
-	WideCharToMultiByte (CP_ACP, 0, &wsNote[0], (int)wsNote.size(), &strNote[0], MAX_NOTE_SIZE, NULL, NULL);
-	std::ofstream ofs("Note.txt");
-	ofs << strNote;
-	ofs.close();
+	FILE* f = fopen(db, "wb");
+	if (!f) {
+		return;
+	}
+	fwrite(note, sizeof(note[0]), strlen(note), f);
+	fclose(f);
 }
 
 void LoadNote() {
-	std::string strNote, line;
-	strNote = "";
-	std::ifstream ifs("Note.txt");
-	if (ifs.is_open())
-	{
-		while (getline(ifs, line))
-		{
-			strNote += line;
-			strNote += '/n';
-		}
-		ifs.close();
+	FILE* f = fopen(db, "rb");
+	if (!f) {
+		return;
 	}
-	MultiByteToWideChar(CP_ACP, 0, strNote.c_str(), -1, note, MAX_NOTE_SIZE);
+	fseek(f, 0L, SEEK_END);
+	long size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	fread(note, sizeof(note[0]), min(size, MAX_NOTE_SIZE-1), f);
+	fclose(f);
 }

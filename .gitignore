@@ -28,3 +28,10 @@
 *.app
 ipch/
 Mnemosyne-notes.VC.db
+*.iobj
+*.ipdb
+Mnemosyne-notes.aps
+Mnemosyne-notes/Debug
+Mnemosyne-notes/Release
+.vs/
+*.swp
