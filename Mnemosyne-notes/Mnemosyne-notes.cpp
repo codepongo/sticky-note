@@ -19,10 +19,12 @@ char note[MAX_NOTE_SIZE] = { 0 };
 NOTIFYICONDATA nid;
 HMENU hPopMenu;
 HWND hWnd;
-LPCWSTR	szTitle = L"Mnemosyne-notes";				// The title bar text
-LPCWSTR	szWindowClass = L"Mnemosyne-notes";			// the main window class name
+HDC bkg;
+LPCWSTR	szTitle = L"sticky-notes";				// The title bar text
+LPCWSTR	szWindowClass = L"sticky-notes";			// the main window class name
 LPCWSTR	icon_path_name = L"icon.ico";
 const char* db = "stick-note.txt";
+
 
 HFONT font = CreateFont(20, 8, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_ROMAN, L"Tahoma");
 
@@ -42,6 +44,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_ int       nCmdShow)
 {
 	ExceptionFilter e;
+
+
 
 	MyRegisterClass(hInstance);
 
@@ -85,25 +89,46 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	return RegisterClassEx(&wcex);
 }
 
+HWND findDesktopIconWnd()
+{
+	HWND hDesktop = ::FindWindowA("Progman", NULL);
+	hDesktop = ::GetWindow(hDesktop, GW_CHILD);
+	hDesktop = ::GetWindow(hDesktop, GW_CHILD);
+	return hDesktop;
+
+}
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	DWORD styleEx = WS_EX_COMPOSITED | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW;
 	DWORD style = WS_POPUP | WS_VISIBLE;
 	hWnd = CreateWindowEx(styleEx, szWindowClass, szTitle, style, GetSystemMetrics(SM_CXSCREEN) - 400, 10, 400, 800, NULL, NULL, hInstance, NULL);
-	SetLayeredWindowAttributes(hWnd, 0x00ffffff, 255, LWA_COLORKEY | LWA_ALPHA | SW_SHOWMINIMIZED);
+	//SetLayeredWindowAttributes(hWnd, 0x00ffffff, 255, LWA_COLORKEY | LWA_ALPHA | SW_SHOWMINIMIZED);
 	SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SW_SHOWMINIMIZED);
+
+	
 	if (!hWnd)
 	{
 		return FALSE;
 	}
 
+	HWND parent = findDesktopIconWnd();
+
+	if (NULL == SetParent(hWnd, parent))
+	{
+		char buf[1024] = { 0 };
+		sprintf(buf, "%d\n", GetLastError());
+		OutputDebugStringA(buf);
+	}
+
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
+
+
 	DWORD icon_flags =  LR_DEFAULTSIZE;
 	HICON hicon = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_SMALL), IMAGE_ICON, 0, 0, icon_flags);
-	LPCWSTR sTip = L"Mnemosyne-notes";
+	LPCWSTR sTip = L"sticky-notes";
 	nid.cbSize = sizeof(NOTIFYICONDATA);
 	nid.hWnd = (HWND)hWnd;
 	nid.uID = ID_TRAY;
@@ -173,6 +198,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RECT rect;
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
+		SetBkMode(hdc, TRANSPARENT);
+		{
+
+			HWND hDesktop = ::findDesktopIconWnd();
+			RECT pos;
+			GetWindowRect(hWnd, &pos);
+
+			HDC desktop = ::GetWindowDC(hDesktop);
+
+			::BitBlt(hdc, 0, 0, pos.right - pos.left, pos.bottom - pos.top, desktop, pos.left, pos.top, SRCCOPY);
+			ReleaseDC(hDesktop, desktop);
+		}
+		
 		SetTextColor(hdc, RGB(0xEF, 0xF2, 0x84));
 		GetClientRect(hWnd, &rect);
 		rect.left = 0;
